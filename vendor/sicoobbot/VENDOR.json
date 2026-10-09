@@ -1,0 +1,17 @@
+{
+  "origem": "robô SicoobBot (pasta automacoes)",
+  "commit": "d75a22dc2cd1d380b473876e52f372e225142c01",
+  "assunto": "fix: close leftover drawers and dialogs so one error does not block the next accounts",
+  "alteracoes_nao_commitadas": false,
+  "playwright_do_robo": "1.63.0 (Chromium 153.0.8010.12), versão do EXE em 8/10/2026",
+  "arquivos": {
+    "sicoob_actions.py": "dc932daefd9ba724209f4a8d5186fa5cde332ae986a5dd9fd432ad5d92104be9",
+    "browser_manager.py": "375a6d0185c504f5f21be6478a0ccf6bd10458080f878bd8f5a64e9fcc581517",
+    "parse_extrato_sicoob_txt.py": "28ea046a44730c98324155b08911d929a6851ce5a8abecf4ddfdccf4bf7b1aa2",
+    "decode_extrato_texto.py": "4bb89fcd184a6787a8d81dabb328a6cfcfff668fb0d4481adfad552d49a5249b",
+    "build_html_extrato_sicoob.py": "2ae3fa9144554359355835c69416b15ed84a8f01038c2d1184ca8feb81fbf85d",
+    "build_html_extrato_sicoob_capital.py": "2ed609bcfdae1510ebad5696f9e09a69a2578205f27b651650ca01b627e34794",
+    "build_html_comprovantes_sicoob.py": "f23f3a85670af806b332f82a0362115f8142858ea4ee91c270bb71dfbe2405a8",
+    "build_html_extrato_cartao.py": "f3849152d797497104065e2bb78f54d83ba23a610ad70b73dc7b37220b4dfaee"
+  }
+}
