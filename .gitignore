@@ -5,3 +5,4 @@ venv/
 *.log
 dumps/
 .DS_Store
+*.tmp
