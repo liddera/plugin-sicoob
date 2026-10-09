@@ -301,7 +301,7 @@ class TestHistoricoPropriO(Base):
         self.assertEqual(len(regs), 8)  # um registro por item concluído
         por = {(r["numero"], r["tipo"], r["chave"]): r for r in regs}
         ok = por[("47.041-4", "corrente", "09/2026")]
-        self.assertEqual((ok["resultado"], ok["origem"], ok["plugin"], ok["chromium"]), ("sucesso", "plugin", "0.3.0", "153.0.8010.12"))
+        self.assertEqual((ok["resultado"], ok["origem"], ok["plugin"], ok["chromium"]), ("sucesso", "plugin", "0.4.0", "153.0.8010.12"))
         self.assertTrue(ok["pdf_path"].endswith("09.pdf") and ok["tamanho_bytes"] > 0)
         self.assertIn("inicio", ok)
         self.assertIsNotNone(ok["duracao_s"])
@@ -381,6 +381,64 @@ class TestHistoricoPropriO(Base):
         _, d = c.tool_json("historico", {"consulta": "resumo"})
         self.assertEqual(d["itens_distintos"], 2)       # os registros bons continuam valendo
         self.assertEqual(d["linhas_ignoradas"], 1)      # e a linha quebrada é contada, não derruba nada
+
+
+class TestPerfilNovoEExistente(Base):
+    def _criar_perfil(self, versao):
+        d = Path(self.home) / "perfil_sicoobnet_persistente"
+        (d / "Default").mkdir(parents=True)
+        (d / "Last Version").write_text(versao, encoding="utf-8")
+
+    def test_usuario_que_nunca_usou_o_robo(self):
+        c = self.iniciar()
+        erro, d = c.tool_json("conectar")
+        self.assertFalse(erro, d)
+        self.assertEqual(d["perfil"]["situacao"], "novo")
+        self.assertIn("Primeira vez", d["perfil"]["observacao"])
+        c.esperar("login_status", lambda x: x["login"] == "ok")
+
+    def test_usuario_do_robo_com_a_mesma_versao_reaproveita_o_perfil(self):
+        self._criar_perfil("153.0.8010.12")
+        c = self.iniciar()
+        erro, d = c.tool_json("conectar")
+        self.assertFalse(erro, d)
+        self.assertEqual((d["perfil"]["situacao"], d["perfil"]["versao_perfil"]), ("existente", "153.0.8010.12"))
+        self.assertNotIn("precisa_confirmar", d)
+        self.assertIn("reaproveitado", d["perfil"]["observacao"])
+
+    def test_robo_antigo_exige_confirmacao_antes_de_atualizar_o_perfil(self):
+        self._criar_perfil("145.0.7632.6")
+        c = self.iniciar()
+        erro, d = c.tool_json("conectar")
+        self.assertFalse(erro, d)
+        self.assertTrue(d["precisa_confirmar"])
+        self.assertTrue(d["perfil"]["afeta_robo_antigo"])
+        self.assertIn("deixa de abrir", d["mensagem"])
+        _, st = c.tool_json("login_status")
+        self.assertEqual((st["navegador"], st["login"]), ("fechado", "nao_iniciado"))  # nada foi aberto
+        # o usuário aceita: agora abre
+        erro, d = c.tool_json("conectar", {"aceitar_atualizar_perfil": True})
+        self.assertFalse(erro, d)
+        self.assertNotIn("precisa_confirmar", d)
+        c.esperar("login_status", lambda x: x["login"] == "ok")
+
+    def test_perfil_de_robo_mais_novo_e_recusado_com_explicacao(self):
+        self._criar_perfil("154.0.1.1")
+        c = self.iniciar()
+        erro, txt = c.tool("conectar")
+        self.assertTrue(erro)
+        self.assertIn("mais novo", txt)
+        _, st = c.tool_json("login_status")
+        self.assertEqual(st["navegador"], "fechado")
+
+    def test_robo_aberto_com_o_mesmo_perfil_e_recusado(self):
+        d = Path(self.home) / "perfil_sicoobnet_persistente"
+        d.mkdir(parents=True)
+        os.symlink(f"host-{os.getpid()}", d / "SingletonLock")  # um processo vivo segura o perfil
+        c = self.iniciar()
+        erro, txt = c.tool("conectar")
+        self.assertTrue(erro)
+        self.assertIn("SicoobBot", txt)
 
 
 if __name__ == "__main__":

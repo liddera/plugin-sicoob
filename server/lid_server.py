@@ -58,7 +58,11 @@ TOOLS = [
     ("diagnostico", "Mostra caminhos, versões e as últimas linhas do log do plugin (sem dados bancários), para suporte.", None, 30, True,
      {"linhas": {"type": "integer", "description": "quantas linhas finais do log (padrão 30)"}}, []),
     ("conectar", "Abre o navegador do Sicoob na tela de login e aguarda o QR code. O login e o cadastro de dispositivo são MANUAIS "
-     "(o usuário escaneia o QR). Nunca feche o navegador logado. Depois consulte login_status.", "conectar", 200, False, {}, []),
+     "(o usuário escaneia o QR). Nunca feche o navegador logado. Depois consulte login_status. A resposta traz `perfil`: situação 'novo' "
+     "(primeira vez: o Sicoob pede o cadastro do dispositivo) ou 'existente' (perfil já usado neste computador). Se vier "
+     "`precisa_confirmar`, o perfil é de uma versão mais antiga do navegador (em geral, do SicoobBot): pergunte ao usuário e só então chame de novo com aceitar_atualizar_perfil=true.",
+     "conectar", 200, False,
+     {"aceitar_atualizar_perfil": {"type": "boolean", "description": "true só depois de o usuário aceitar que o perfil de uma versão antiga do navegador seja atualizado"}}, []),
     ("login_status", "Informa se o navegador está aberto, se o login foi concluído e quantas contas foram carregadas.", "login_status", 30, True, {}, []),
     ("listar_contas", "Lista os números das contas carregadas do portal depois do login.", "listar_contas", 120, True, {}, []),
     ("buscar_conta", "Busca contas no portal por número ou nome da empresa. Devolve número, nome e tipo (PJ/PF), nunca CNPJ/CPF.",
@@ -72,7 +76,7 @@ TOOLS = [
     ("cancelar", "Cancela a extração ao fim do item atual (não fecha o navegador).", "cancelar", 15, False, {}, []),
     ("resultados", "Relatório da última extração: conta, empresa, documento, mês, resultado e arquivo. Nunca inclui saldos nem movimentos.",
      "resultados", 30, True, {}, []),
-    ("atalho_contas", "Contas pendentes ou com erro, a partir do histórico do plugin (padrão) ou do controle do robô (fonte='robo', somente leitura). "
+    ("atalho_contas", "Contas pendentes ou com erro, a partir do histórico do plugin (padrão) ou do controle do SicoobBot (fonte='robo', somente leitura). "
      "'com_erro': itens cujo último resultado foi erro. 'pendentes': dos documentos e meses informados, o que nunca teve sucesso.",
      "atalho_contas", 60, True,
      {"modo": {"type": "string", "enum": ["pendentes", "com_erro"]},

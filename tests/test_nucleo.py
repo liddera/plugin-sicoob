@@ -194,6 +194,48 @@ class TestPerfil(unittest.TestCase):
             self.assertFalse(perfil.perfil_em_uso(d))
 
 
+class TestSituacaoDoPerfil(unittest.TestCase):
+    """Os dois tipos de usuário: quem nunca usou o robô (sem perfil) e quem já usou (perfil pronto)."""
+
+    def _situacao(self, versao_perfil=None, criar=True, chromium="153.0.8010.12"):
+        with tempfile.TemporaryDirectory() as d:
+            perfil_dir = Path(d) / "perfil"
+            if criar:
+                perfil_dir.mkdir()
+                if versao_perfil:
+                    (perfil_dir / "Last Version").write_text(versao_perfil, encoding="utf-8")
+                    (perfil_dir / "Default").mkdir()
+            return perfil.situacao(chromium, perfil_dir)
+
+    def test_nunca_usou_o_robo_perfil_inexistente(self):
+        s = self._situacao(criar=False)
+        self.assertEqual((s["situacao"], s["afeta_robo_antigo"]), ("novo", False))
+        self.assertIn("Primeira vez", s["observacao"])
+        self.assertIn("cadastro do dispositivo", s["observacao"])
+
+    def test_pasta_vazia_conta_como_novo(self):
+        self.assertEqual(self._situacao(versao_perfil=None, criar=True)["situacao"], "novo")
+
+    def test_usa_o_robo_com_a_mesma_versao(self):
+        s = self._situacao("153.0.8010.12")
+        self.assertEqual((s["situacao"], s["afeta_robo_antigo"]), ("existente", False))
+        self.assertIn("reaproveitado", s["observacao"])
+
+    def test_mesma_versao_principal_nao_assusta(self):
+        self.assertFalse(self._situacao("153.0.8010.5")["afeta_robo_antigo"])
+
+    def test_robo_antigo_seria_afetado(self):
+        s = self._situacao("145.0.7632.6")
+        self.assertEqual((s["situacao"], s["afeta_robo_antigo"]), ("existente", True))
+        self.assertIn("deixa de abrir", s["observacao"])
+
+    def test_robo_mais_novo_nao_e_afetado_mas_o_plugin_recusa_ao_abrir(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "Last Version").write_text("154.0.1.1", encoding="utf-8")
+            self.assertFalse(perfil.situacao("153.0.8010.12", d)["afeta_robo_antigo"])
+            self.assertEqual(perfil.checar_perfil("153.0.8010.12", d)["codigo"], "perfil_mais_novo")
+
+
 class TestResultado(unittest.TestCase):
     def test_salvar_e_carregar(self):
         e = resultado.nova_execucao("r1", {"pasta": "x"}, [resultado.novo_item("A", "corrente", 2026, 9)])

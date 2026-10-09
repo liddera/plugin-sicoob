@@ -93,8 +93,9 @@ def _estado_login() -> dict:
     return {"navegador": ST.navegador, "login": ST.login, "mensagem": ST.mensagem, "contas_carregadas": len(ST.contas)}
 
 
-def op_conectar(_):
+def op_conectar(args):
     b = backend()
+    args = args or {}
     if ST.navegador == "aberto" and b.vivo_rapido():
         if ST.login in ("ok", "aguardando", "carregando_contas"):
             return {**_estado_login(), "aviso": "O navegador já está aberto."}
@@ -104,12 +105,24 @@ def op_conectar(_):
         return _estado_login()
     if ST.navegador in ("aberto", "travou"):
         ST.navegador = "fechado"
+    versao = b.versao_chromium()
+    chk = perfil.checar_perfil(versao)  # perfil em uso (robô aberto) ou de um Chromium mais novo: recusa com explicação
+    if not chk["ok"]:
+        logs.evento("perfil_bloqueado", codigo=chk["codigo"], versao_perfil=chk.get("versao_perfil"))
+        raise Falha(chk["motivo"])
+    sit = perfil.situacao(versao)
+    if sit["afeta_robo_antigo"] and not args.get("aceitar_atualizar_perfil"):
+        logs.evento("perfil_pede_confirmacao", versao_perfil=sit["versao_perfil"], versao_chromium=versao)
+        return {"precisa_confirmar": True, "perfil": sit,
+                "mensagem": sit["observacao"] + " Pergunte ao usuário; se ele aceitar, chame conectar de novo com "
+                            "aceitar_atualizar_perfil=true. Se preferir não arriscar, atualize antes o programa que criou o perfil (por exemplo, o SicoobBot)."}
     ST.login, ST.mensagem = "aguardando", "Escaneie o QR code no navegador que abriu e não feche a janela."
     ST.contas = []
     b.abrir_navegador()
     ST.navegador = "aberto"
     b.esperar_login_e_listar()
-    return _estado_login()
+    logs.evento("perfil_usado", situacao=sit["situacao"], versao_perfil=sit["versao_perfil"], versao_chromium=versao)
+    return {**_estado_login(), "perfil": sit}
 
 
 def op_login_status(_):
@@ -317,11 +330,11 @@ def op_atalho_contas(args):
         ctl = controle.carregar()
         if modo == "com_erro":
             itens = controle.itens_com_erro(ctl, [tipo])
-            return {"fonte": "controle do robô (hoje, somente leitura)", "documento": tipo,
+            return {"fonte": "controle do SicoobBot (hoje, somente leitura)", "documento": tipo,
                     "contas": list(dict.fromkeys(i["numero"] for i in itens)), "itens": itens}
         _exigir_login()
         g = controle.classificar_contas(ctl, ST.contas, tipo)
-        return {"fonte": "controle do robô (hoje, somente leitura)", "documento": tipo, "contas": g["pendentes"], "contagem": g["contagem"]}
+        return {"fonte": "controle do SicoobBot (hoje, somente leitura)", "documento": tipo, "contas": g["pendentes"], "contagem": g["contagem"]}
     tipos, ruins = pedido.normalizar_tipos(args.get("documentos") or ([args["documento"]] if args.get("documento") else []))
     if ruins:
         raise Falha(f"documento não reconhecido: {', '.join(ruins)}")
