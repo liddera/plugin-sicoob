@@ -17,16 +17,22 @@ allowed-tools:
 Primeiro passo de toda extração. **O login é sempre manual**: nunca digite credenciais e nunca cadastre o
 dispositivo no lugar do usuário. Nunca peça para fechar o navegador logado, e nunca feche-o.
 
-> **Se as ferramentas do servidor `sicoob` não existirem** (o servidor não conseguiu iniciar), a causa mais comum é o
-> **Python não estar instalado ou não estar no PATH** (o plugin chama o comando `python`). Oriente: instalar o Python 3.10 ou mais
-> novo em python.org marcando "Add python.exe to PATH", conferir com `python --version` no terminal, e **reiniciar o Claude**.
-> Depois rode `/lid:preparar`.
+> **Se as ferramentas do servidor `sicoob` não existirem** (o servidor não conseguiu iniciar), a causa mais comum é o **Python
+> ausente ou fora do PATH**. Não improvise: **invoque a skill `preparar`** e siga a sua seção "A" (ela confere o Python, **oferece instalar
+> com a permissão do usuário** e orienta a reiniciar o Claude). Depois volte ao `/lid:login`.
 
 ## 1. Abrir o navegador e aguardar o login
-1. Chame `conectar`. Ele abre o navegador do robô na tela de login do SicoobNet.
+1. Chame `conectar`. Ele abre o navegador do plugin na tela de login do SicoobNet.
    - Se responder que o ambiente não está pronto, oriente a rodar `/lid:preparar` e pare.
-   - Se disser que o perfil está em uso, peça para fechar o robô SicoobBot (um perfil só abre em um programa por vez).
+   - Se disser que o perfil está em uso por outro programa (por exemplo, o SicoobBot, se o computador o tiver), peça para fechá-lo: um perfil só abre em um programa por vez.
    - Se disser que o perfil é de um navegador mais novo, explique que é preciso atualizar o plugin e pare.
+   - **Leia `perfil` na resposta e diga ao usuário o que se aplica:**
+     - `situacao: "novo"` (nenhum perfil neste computador): é a **primeira vez**; o Sicoob vai pedir para **cadastrar o dispositivo**, o que se faz uma única vez.
+     - `situacao: "existente"`: já há um perfil usado neste computador. Ele será **reaproveitado**; se o dispositivo já foi cadastrado nele,
+       o Sicoob não deve pedir o cadastro de novo (isso ainda não foi confirmado, então não prometa).
+     - `precisa_confirmar: true`: o perfil foi criado por uma **versão mais antiga do navegador** (em geral, pelo SicoobBot). Usar o plugin o atualiza e **o programa que o criou deixa de abrir** até ser atualizado.
+       Explique isso, pergunte se o usuário aceita e **só então** chame `conectar` de novo com `aceitar_atualizar_perfil: true`.
+       Se ele preferir não arriscar, pare e oriente a atualizar esse programa para a mesma versão (Chromium 153).
 2. Diga ao usuário: **escaneie o QR code no navegador que abriu** (e cadastre o dispositivo, se o Sicoob pedir)
    e **não feche a janela**.
 3. Consulte `login_status` a cada poucos segundos até `login` ser `ok` (a espera pode chegar a uns 8 minutos).
@@ -37,14 +43,14 @@ dispositivo no lugar do usuário. Nunca peça para fechar o navegador logado, e 
 ## 2. Montar o pedido, nesta ordem
 Pergunte uma coisa de cada vez (ou aceite tudo em uma frase) e converta para os campos da ferramenta.
 
-1. **Pasta de destino**: sugira `H:\Drives compartilhados\Contábil` (padrão do robô) e pergunte "usar essa ou outra?".
+1. **Pasta de destino**: sugira `H:\Drives compartilhados\Contábil` (pasta padrão) e pergunte "usar essa ou outra?".
 2. **Contas**:
    - números, com ou sem pontuação (`47.041-4`, `470414`);
    - nome da empresa: use `buscar_conta` e mostre as contas encontradas para o usuário escolher;
    - "todas": peça confirmação extra;
    - "as com erro": use `atalho_contas` com `modo: "com_erro"` (itens cujo último resultado foi erro, pelo histórico do plugin) e mostre a lista;
    - "as pendentes": primeiro defina documentos e meses, depois use `atalho_contas` com `modo: "pendentes"`, `documentos` e `meses`
-     (o que nunca teve sucesso); o robô tem um controle próprio, consultável com `fonte: "robo"` (somente leitura);
+     (o que nunca teve sucesso); se o computador tiver o SicoobBot, ele guarda um controle próprio, consultável com `fonte: "robo"` (somente leitura);
    - uma lista colada: um número por linha.
 3. **Documentos**: extrato conta corrente, conta capital, comprovantes, fatura de cartão (um, vários ou "todos").
 4. **Meses**: `06/2026`, `06/2026 a 09/2026`, "junho a setembro de 2026", "mês passado" (calcule e mostre as datas).

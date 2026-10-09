@@ -17,7 +17,7 @@ allowed-tools:
 3. Leia as últimas linhas do log e destaque o que importa:
    - `pagina_travou`: o navegador travou (indício de falta de memória);
    - `pagina_fechada`, `contexto_fechado`, `navegador_desconectado`: o navegador foi fechado ou caiu (por alguém ou por outro programa);
-   - `perfil_bloqueado`: o perfil está em uso (robô aberto) ou é de um Chromium mais novo;
+   - `perfil_bloqueado`: o perfil está em uso por outro programa ou é de um Chromium mais novo;
    - `login_timeout`, `login_abortado`: o login não foi concluído a tempo, ou o navegador foi fechado antes;
    - `execucao_inicio`, `execucao_fim`, `execucao_falha`: andamento das extrações.
 4. Se fizer sentido, use `historico` com `consulta: "resumo"` (contagens do histórico do plugin e quantas linhas foram ignoradas por estarem cortadas).

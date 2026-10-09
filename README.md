@@ -7,7 +7,13 @@ pastas da contabilidade.
 É um produto **separado** do robô SicoobBot (`automacoes`): não tem tela, o Claude conduz por conversa.
 O código que fala com o portal e as regras de pasta/nome/período são **os do robô**, copiados em `vendor/`.
 
-## Status (v0.3.0)
+## Documentação
+| Para quem | Documento |
+|---|---|
+| **Quem vai usar o plugin** (passo a passo, sem termos técnicos) | **[Guia do usuário](docs/GUIA_DO_USUARIO.md)** |
+| Quem mantém o plugin (decisões e fases) | [Plano e decisões](docs/PLANO.md) |
+
+## Status (v0.4.0)
 
 Todas as partes foram construídas e testadas **sem o portal**; a parte que depende de login por QR **ainda não foi
 testada com o Sicoob real**. Veja "O que foi e o que não foi verificado".
@@ -24,7 +30,8 @@ testada com o Sicoob real**. Veja "O que foi e o que não foi verificado".
 
 ## Requisitos
 - **Windows**, **Claude Desktop** na aba **Código** (ou Claude Code).
-- **Python 3.10 ou mais novo com o comando `python` no PATH** (python.org, marcando "Add python.exe to PATH"). Confira com `python --version`.
+- **Python 3.10 ou mais novo com o comando `python` no PATH.** Se faltar, o `/lid:preparar` (e o `/lid:login`) **detectam e oferecem instalar** pelo `winget`, com a permissão do usuário (depois é preciso reabrir o Claude); alternativa manual: python.org marcando "Add python.exe to PATH". Confira com `python --version`.
+  O plugin não consegue instalar o Python sozinho porque o servidor dele é um programa Python: sem Python nem as ferramentas existem. Só as instruções (skills) funcionam, e é por elas que o Claude conduz a instalação.
 - Acesso ao SicoobNet PJ e ao **celular com o app do Sicoob** (login por QR code).
 - Internet e ≈ 400 MB livres na primeira vez (ambiente Python + Chromium).
 - O robô **SicoobBot fechado** durante o uso (os dois usam o mesmo perfil de navegador).
@@ -41,9 +48,11 @@ ou, em um passo (Claude Code 2.1.275+): `/plugin install lid --marketplace lidde
 - Marketplaces de terceiros **não atualizam sozinhos**: atualize pela aba *Marketplaces* de `/plugin` ou com `claude plugin update lid@liddera-plugins`.
 - O `plugin.json` fixa a **versão**: a cada entrega, aumente `version`, senão a equipe não recebe a atualização.
 
-Depois: `/lid:preparar` (uma vez por computador) e `/lid:login`.
+Depois: `/lid:preparar` (uma vez por computador) e `/lid:login`. Detalhes em **[docs/GUIA_DO_USUARIO.md](docs/GUIA_DO_USUARIO.md)**.
 
 ## Como usar
+> Passo a passo, em linguagem simples, para quem não é técnico: **[Guia do usuário](docs/GUIA_DO_USUARIO.md)**.
+
 1. **`/lid:preparar`** (uma vez): cria o ambiente Python do plugin, instala `playwright==1.63.0` e baixa o Chromium 153.0.8010.12 (≈ 200 MB).
 2. **`/lid:login`**: abre o navegador do Sicoob; o usuário **escaneia o QR** (e cadastra o dispositivo, se pedir) e **não fecha a janela**.
    Depois o Claude pergunta, nesta ordem: **pasta → contas → documentos → meses** e mostra um resumo para confirmar.
@@ -116,6 +125,7 @@ se não existir, é criada com o nome formatado (`Auto Posto Patrao Cacoal Ltda`
 - **Chrome for Testing 153.0.8010.12** (Playwright 1.63.0), a mesma versão do EXE do robô, visível. Não precisa ter o Chrome instalado.
 - Perfil: `%LOCALAPPDATA%\SicoobBot\perfil_sicoobnet_persistente`, o **mesmo do robô** (guarda o cadastro do dispositivo no Sicoob).
 - Um Chromium **mais antigo não abre** um perfil usado por um **mais novo**. Por isso a versão é fixa, e o plugin confere o arquivo `Last Version` do perfil antes de abrir e recusa com uma explicação clara.
+- **Dois tipos de usuário**, tratados de forma explícita em `conectar`/`/lid:login`: quem **nunca usou o robô** (sem perfil: "primeira vez", o Sicoob pede o cadastro do dispositivo) e quem **já usa o robô** (perfil existente: é reaproveitado). Se o perfil for de um **robô com Chromium mais antigo**, o plugin **não o atualiza em silêncio**: pede confirmação (`aceitar_atualizar_perfil`), porque o robô antigo deixaria de abrir.
 - **Um programa por vez** no perfil: com o robô aberto, o plugin avisa para fechá-lo.
 - Login por QR e cadastro de dispositivo são **sempre manuais**. O plugin nunca digita credenciais. **Nunca feche a janela logada.**
 - O navegador pertence ao plugin: ao **fechar o Claude**, o navegador fecha e o próximo uso exige novo QR.
@@ -150,7 +160,7 @@ Tudo isso fica na **pasta de dados do plugin**, que **não** é a pasta de desti
 ## Problemas comuns
 | Sintoma | Causa provável | O que fazer |
 |---|---|---|
-| Servidor `sicoob` aparece como **failed** / não há ferramentas | Python ausente ou fora do PATH (o plugin chama `python`) | Instalar o Python 3.10+, conferir `python --version`, **reiniciar o Claude**. O Claude guarda a falha em cache por 15 min; reiniciar resolve |
+| Servidor `sicoob` aparece como **failed** / não há ferramentas | Python ausente ou fora do PATH (o plugin chama `python`) | Rodar `/lid:preparar`: o Claude oferece instalar o Python. Depois **reiniciar o Claude** (a falha fica em cache por 15 min) |
 | "O ambiente do plugin não está pronto" | Falta rodar a preparação | `/lid:preparar` |
 | "Feche o SicoobBot" / perfil em uso | O robô ou outra sessão usa o perfil | Fechar o robô |
 | Navegador não abre, "Target page… closed" | Perfil usado por Chromium mais novo | Atualizar o plugin (mesma versão do robô) |
@@ -185,7 +195,7 @@ core/                             pedido, runner, historico, erros, controle (ro
 vendor/sicoobbot/                 código do robô + config.py do plugin + VENDOR.json
 scripts/sync_vendor.py            copia o código do robô e registra o commit de origem
 tests/                            unittest (+ smoke_*.py manuais, com navegador real)
-docs/                             plano e decisões
+docs/                             GUIA_DO_USUARIO.md (usuário final) e PLANO.md (decisões)
 ```
 
 ## Desenvolvimento

@@ -29,7 +29,7 @@ a aprovação do usuário**: só chame depois de ele ter confirmado o resumo.
 - **Continuar de onde parou** (itens que não rodaram: cancelamento ou navegador fechado): `extrair` com `refazer: "continuar"`.
 - O resultado traz o número da execução e o total de itens. A execução roda em segundo plano (cada item leva de 20 a 70 s).
 
-## Regras que a execução segue (as do robô SicoobBot)
+## Regras que a execução segue
 - Ordem: todos os meses do 1º documento, depois os do 2º.
 - Só o primeiro item de cada conta entra pela lista de contas; os seguintes reaproveitam a conta; só o último volta à lista.
 - 2 tentativas por item e até 3 recuperações por conta; depois, desiste dos itens restantes da conta.

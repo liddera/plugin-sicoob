@@ -1,7 +1,7 @@
 {
   "name": "lid",
   "displayName": "Liddera Sicoob",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Extração de extratos, comprovantes e faturas do SicoobNet PJ conduzida pelo Claude, reaproveitando as regras do robô SicoobBot (Liddera).",
   "author": {
     "name": "Liddera"
