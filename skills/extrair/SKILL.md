@@ -1,27 +1,46 @@
 ---
 name: extrair
-description: Executa a extração confirmada no /lid:login (extratos, comprovantes e faturas do Sicoob) e acompanha o andamento. Use quando o usuário pedir /lid:extrair, mandar rodar ou refazer os itens com erro.
+description: Executa a extração confirmada no /lid:login (extratos, comprovantes e faturas do Sicoob) e acompanha o andamento. Use quando o usuário pedir /lid:extrair, mandar rodar, refazer os itens com erro ou continuar de onde parou.
 user-invocable: true
+allowed-tools:
+  - mcp__plugin_lid_sicoob__login_status
+  - mcp__plugin_lid_sicoob__validar_pedido
+  - mcp__plugin_lid_sicoob__status
+  - mcp__plugin_lid_sicoob__resultados
+  - mcp__plugin_lid_sicoob__atalho_contas
 ---
 
 # /lid:extrair
 
-> Estado: esqueleto (F1). Depende do servidor MCP (F4).
+Executa o pedido já montado no `/lid:login`. A ferramenta `extrair` grava arquivos no disco, então ela **pede
+a aprovação do usuário**: só chame depois de ele ter confirmado o resumo.
 
-1. Exija um login ativo e um pedido confirmado. Se faltar, peça `/lid:login` antes.
-2. Valide o pedido de novo (conta existe, documento válido, mês não é futuro, pasta gravável).
-3. Inicie a execução e devolva o número dela. A execução roda em segundo plano; cada item leva de 20 a 70 s.
-4. Regras de execução (as do robô SicoobBot):
-   - ordem: todos os meses do 1º documento, depois os do 2º;
-   - só o primeiro item da conta entra pela lista de contas; os seguintes reaproveitam a conta; só o último volta à lista;
-   - 2 tentativas por item e até 3 recuperações por conta;
-   - antes de cada item, fechar drawers, diálogos e popups abertos;
-   - conta sem cartão e mês sem comprovantes são **avisos**, não erros; capital sem movimento gera PDF só com os saldos;
-   - arquivo `MM.pdf` já existente é substituído e marcado como "substituído" no relatório.
-5. Informe o andamento quando o usuário perguntar (veja `/lid:status`).
-6. Ao terminar, mostre o relatório (veja `/lid:resultado`) e ofereça **refazer só os itens com erro**.
+## Antes de começar
+1. Confirme que há login ativo com `login_status` (`login` = `ok`). Se não houver, peça `/lid:login`.
+2. Se o usuário não montou um pedido nesta conversa, volte ao `/lid:login` para montá-lo. Refazer e continuar não
+   precisam de pedido novo.
 
-Atalhos aceitos nas contas: "as pendentes", "as com erro" e "continuar de onde parou" (leitura do
-`controle_execucao_contas.json` do robô, sem gravar na primeira versão).
+## Iniciar
+- **Pedido novo:** chame `extrair` com `pasta`, `contas`, `documentos`, `meses` e `confirmado: true`.
+- **Refazer os itens com erro da última execução:** `extrair` com `refazer: "erro"` e `confirmado: true`.
+- **Continuar de onde parou** (itens que não rodaram: cancelamento ou navegador fechado): `extrair` com `refazer: "continuar"`.
+- O resultado traz o número da execução e o total de itens. A execução roda em segundo plano (cada item leva de 20 a 70 s).
 
-Nunca devolva saldos nem movimentos na conversa.
+## Regras que a execução segue (as do robô SicoobBot)
+- Ordem: todos os meses do 1º documento, depois os do 2º.
+- Só o primeiro item de cada conta entra pela lista de contas; os seguintes reaproveitam a conta; só o último volta à lista.
+- 2 tentativas por item e até 3 recuperações por conta; depois, desiste dos itens restantes da conta.
+- **Aviso não é erro:** conta sem cartão e mês sem comprovantes não são repetidos.
+- Capital sem movimento gera o PDF só com os saldos. Um `MM.pdf` que já existe é substituído e marcado no relatório.
+- Se o navegador for fechado, a execução é **interrompida** e os itens restantes ficam "não executados" (não viram erro).
+
+## Acompanhar
+Quando o usuário perguntar, use `status` (veja `/lid:status`). Não fique consultando sem necessidade: avise quantos itens faltam.
+
+## Ao terminar
+Mostre o relatório com `resultados` (veja `/lid:resultado`) e, se houver erros, ofereça **refazer só esses itens**.
+Se a execução foi interrompida, explique o motivo e ofereça `/lid:login` seguido de "continuar".
+
+## Regras
+- Nunca mostre saldos nem movimentos.
+- Nunca feche o navegador logado.
