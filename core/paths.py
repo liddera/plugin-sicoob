@@ -74,3 +74,11 @@ def venv_python() -> Path:
 def plugin_root() -> Path:
     """Raiz do plugin (pasta que contém core/, vendor/, worker/, server/)."""
     return Path(__file__).resolve().parent.parent
+
+
+def versao_plugin() -> str:
+    try:
+        import json
+        return json.loads((plugin_root() / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")).get("version", "0")
+    except Exception:
+        return "0"

@@ -304,11 +304,13 @@ class BackendReal:
 
         return acessar
 
-    def rodar_execucao(self, execucao: dict, contas: list[dict], pasta: str, cancelado, persistir, ao_terminar) -> None:
+    def rodar_execucao(self, execucao: dict, contas: list[dict], pasta: str, cancelado, persistir, ao_terminar,
+                       ao_concluir=lambda item: None) -> None:
         def job(p):
             try:
                 logs.evento("execucao_inicio", run_id=execucao["run_id"], itens=len(execucao["itens"]))
-                Runner(execucao, contas, self._acessar(pasta), self.nav_vivo, cancelado, ao_atualizar=persistir).executar()
+                Runner(execucao, contas, self._acessar(pasta), self.nav_vivo, cancelado, ao_atualizar=persistir,
+                       ao_concluir=ao_concluir).executar()
                 logs.evento("execucao_fim", run_id=execucao["run_id"], status=execucao["status"])
             except Exception as e:  # nunca deixa a execução "rodando" para sempre
                 execucao["status"], execucao["mensagem"] = "interrompida", f"falha inesperada: {e}"

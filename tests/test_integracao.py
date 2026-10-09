@@ -122,7 +122,7 @@ class TestProtocolo(Base):
         tools = c.req("tools/list")["result"]["tools"]
         nomes = {t["name"] for t in tools}
         self.assertEqual(nomes, {"preparar", "preparar_status", "diagnostico", "conectar", "login_status", "listar_contas",
-                                 "buscar_conta", "validar_pedido", "extrair", "status", "cancelar", "resultados", "atalho_contas"})
+                                 "buscar_conta", "validar_pedido", "extrair", "status", "cancelar", "resultados", "atalho_contas", "historico"})
         for t in tools:
             self.assertEqual(t["inputSchema"]["type"], "object")
             self.assertTrue(t["description"])
@@ -276,11 +276,111 @@ class TestRefazerCancelarInterromper(Base):
         antes = ctl_path.read_bytes()
         c = self.iniciar()
         self.logar()
-        _, d = c.tool_json("atalho_contas", {"modo": "com_erro", "documento": "corrente"})
+        _, d = c.tool_json("atalho_contas", {"modo": "com_erro", "documento": "corrente", "fonte": "robo"})
         self.assertEqual(d["contas"], ["109.317-7"])
-        _, d = c.tool_json("atalho_contas", {"modo": "pendentes", "documento": "corrente"})
+        _, d = c.tool_json("atalho_contas", {"modo": "pendentes", "documento": "corrente", "fonte": "robo"})
         self.assertEqual(d["contas"], ["14.035-0"])
         self.assertEqual(ctl_path.read_bytes(), antes)  # somente leitura
+
+
+
+
+class TestHistoricoPropriO(Base):
+    def _ler_linhas(self, nome="itens.jsonl"):
+        arq = Path(self.home) / "lid" / "historico" / nome
+        return [json.loads(l) for l in arq.read_text(encoding="utf-8").splitlines() if l.strip()]
+
+    def test_cada_item_vai_para_o_historico_com_dados_completos(self):
+        roteiro = {"109.317-7|capital|09/2026": [{"erro": "⚠️ Conta 109.317-7 sem cartões de crédito vinculados."}],
+                   "47.041-4|corrente|08/2026": [{"erro": "❌ Timeout no fluxo 'corrente'"}]}
+        c = self.iniciar(fake_env={"LID_FAKE_ROTEIRO": json.dumps(roteiro)})
+        self.logar()
+        c.tool("extrair", {**self.pedido(), "confirmado": True})
+        c.esperar("status", lambda s: s.get("status") == "finished")
+        regs = self._ler_linhas()
+        self.assertEqual(len(regs), 8)  # um registro por item concluído
+        por = {(r["numero"], r["tipo"], r["chave"]): r for r in regs}
+        ok = por[("47.041-4", "corrente", "09/2026")]
+        self.assertEqual((ok["resultado"], ok["origem"], ok["plugin"], ok["chromium"]), ("sucesso", "plugin", "0.3.0", "153.0.8010.12"))
+        self.assertTrue(ok["pdf_path"].endswith("09.pdf") and ok["tamanho_bytes"] > 0)
+        self.assertIn("inicio", ok)
+        self.assertIsNotNone(ok["duracao_s"])
+        erro = por[("47.041-4", "corrente", "08/2026")]
+        self.assertEqual((erro["resultado"], erro["codigo"], erro["tentativas"]), ("erro", "tempo_esgotado", 2))
+        aviso = por[("109.317-7", "capital", "09/2026")]
+        self.assertEqual((aviso["resultado"], aviso["codigo"]), ("aviso", "sem_cartao"))
+        execs = self._ler_linhas("execucoes.jsonl")
+        self.assertEqual([e["evento"] for e in execs], ["inicio", "fim"])
+        self.assertEqual((execs[1]["ok"], execs[1]["avisos"], execs[1]["erros"]), (6, 1, 1))
+
+    def test_atalhos_pendentes_e_com_erro_e_apenas_pendentes(self):
+        roteiro = {"47.041-4|corrente|08/2026": [{"erro": "❌ Timeout no fluxo"}]}
+        c = self.iniciar(fake_env={"LID_FAKE_ROTEIRO": json.dumps(roteiro)})
+        self.logar()
+        ped = self.pedido(contas=["47.041-4"], documentos=["corrente"], meses=["08/2026 a 09/2026"])
+        c.tool("extrair", {**ped, "confirmado": True})
+        c.esperar("status", lambda s: s.get("status") == "finished")
+        # com erro: só o item cujo último resultado foi erro
+        _, d = c.tool_json("atalho_contas", {"modo": "com_erro"})
+        self.assertEqual([(i["numero"], i["chave"], i["codigo"]) for i in d["itens"]], [("47.041-4", "08/2026", "tempo_esgotado")])
+        self.assertEqual(d["fonte"], "histórico do plugin")
+        # pendentes: do pedido (2 contas × corrente × 2 meses), falta tudo da conta 109.317-7 e o mês com erro da 47.041-4
+        _, d = c.tool_json("atalho_contas", {"modo": "pendentes", "documentos": ["corrente"], "meses": ["08/2026 a 09/2026"],
+                                            "contas": ["47.041-4", "109.317-7"]})
+        self.assertEqual((d["itens_pedidos"], d["itens_pendentes"]), (4, 3))
+        self.assertEqual(d["contas"], ["47.041-4", "109.317-7"])
+        # apenas_pendentes: no pedido completo, só roda o que falta (sucesso anterior é pulado)
+        ped2 = self.pedido(contas=["47.041-4", "109.317-7"], documentos=["corrente"], meses=["08/2026 a 09/2026"])
+        _, v = c.tool_json("validar_pedido", {**ped2, "apenas_pendentes": True})
+        self.assertTrue(v["ok"], v)
+        self.assertTrue(any("Só o que falta: 3 de 4" in a for a in v["avisos"]), v["avisos"])
+        erro, ini = c.tool_json("extrair", {**ped2, "apenas_pendentes": True, "confirmado": True})
+        self.assertFalse(erro, ini)
+        self.assertEqual(ini["total_itens"], 3)
+        c.esperar("status", lambda s: s.get("status") == "finished" and s["itens_total"] == 3)
+        # agora só sobra o item que continua falhando; tudo o mais foi feito
+        _, v = c.tool_json("validar_pedido", {**ped2, "apenas_pendentes": True})
+        self.assertTrue(v["ok"])
+        self.assertTrue(any("Só o que falta: 1 de 4" in a for a in v["avisos"]))
+
+    def test_nada_pendente_e_recusado_com_mensagem_clara(self):
+        c = self.iniciar()
+        self.logar()
+        ped = self.pedido(contas=["47.041-4"], documentos=["corrente"], meses=["09/2026"])
+        c.tool("extrair", {**ped, "confirmado": True})
+        c.esperar("status", lambda s: s.get("status") == "finished")
+        _, v = c.tool_json("validar_pedido", {**ped, "apenas_pendentes": True})
+        self.assertFalse(v["ok"])
+        self.assertIn("Nada a fazer", " ".join(v["problemas"]))
+
+    def test_consulta_historico_por_item(self):
+        c = self.iniciar()
+        self.logar()
+        ped = self.pedido(contas=["47.041-4"], documentos=["capital"], meses=["09/2026"])
+        c.tool("extrair", {**ped, "confirmado": True})
+        c.esperar("status", lambda s: s.get("status") == "finished")
+        _, d = c.tool_json("historico", {"consulta": "item", "conta": "470414", "documento": "extrato capital", "mes": "09/2026"})
+        self.assertTrue(d["encontrado"])
+        self.assertEqual(d["ultimo"]["resultado"], "sucesso")
+        self.assertTrue(d["ultimo_sucesso"]["pdf_path"].endswith("09.pdf"))
+        _, d = c.tool_json("historico", {"consulta": "item", "conta": "47.041-4", "documento": "corrente", "mes": "01/2026"})
+        self.assertFalse(d["encontrado"])
+        _, d = c.tool_json("historico", {"consulta": "resumo"})
+        self.assertEqual(d["itens_distintos"], 1)
+        self.assertEqual(d["execucoes_concluidas"], 1)
+
+    def test_historico_sobrevive_a_arquivo_cortado_por_uma_queda(self):
+        c = self.iniciar()
+        self.logar()
+        ped = self.pedido(contas=["47.041-4"], documentos=["corrente"], meses=["08/2026 a 09/2026"])
+        c.tool("extrair", {**ped, "confirmado": True})
+        c.esperar("status", lambda s: s.get("status") == "finished")
+        arq = Path(self.home) / "lid" / "historico" / "itens.jsonl"
+        with open(arq, "ab") as f:
+            f.write(b'{"schema":1,"evento":"item","run_id":"x","numero":"47.041-4","tipo":"corre')  # linha cortada no meio
+        _, d = c.tool_json("historico", {"consulta": "resumo"})
+        self.assertEqual(d["itens_distintos"], 2)       # os registros bons continuam valendo
+        self.assertEqual(d["linhas_ignoradas"], 1)      # e a linha quebrada é contada, não derruba nada
 
 
 if __name__ == "__main__":

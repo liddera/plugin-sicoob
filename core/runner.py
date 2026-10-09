@@ -15,10 +15,13 @@ O runner não conhece Playwright: recebe `acessar(...)`, uma função que chama 
 """
 from __future__ import annotations
 
+import os
 import threading
+import time
 from typing import Callable
 
 from . import resultado as R
+from .erros import codigo_erro
 
 TENTATIVAS_MAX_PERIODO = 2
 RECOVERY_MAX_CONTA = 3
@@ -57,6 +60,7 @@ class Runner:
         ao_atualizar: Callable[[dict], None] = lambda e: None,
         tentativas_max: int = TENTATIVAS_MAX_PERIODO,
         recovery_max: int = RECOVERY_MAX_CONTA,
+        ao_concluir: Callable[[dict], None] = lambda item: None,
     ):
         self.exec = execucao
         self.contas = {c["numero"]: dict(c) for c in contas}
@@ -66,19 +70,40 @@ class Runner:
         self.ao_atualizar = ao_atualizar
         self.tentativas_max = tentativas_max
         self.recovery_max = recovery_max
+        self.ao_concluir = ao_concluir  # chamado quando um item recebe seu resultado final (vai para o histórico)
+        self._t0: dict[int, float] = {}
 
     # -------------------------------------------------------------- utilitários
     def _itens_da_conta(self, numero: str) -> list[dict]:
         return [it for it in self.exec["itens"] if it["numero"] == numero]
 
-    def _fechar(self, item: dict, resultado: str | None, msg: str = "", pdf: str = "") -> None:
+    def _fechar(self, item: dict, resultado: str | None, msg: str = "", pdf: str = "", res: dict | None = None,
+                recuperacoes: int = 0) -> None:
+        res = res or {}
         item["estado"] = "concluido"
         item["resultado"] = resultado
         item["mensagem"] = msg
         if pdf:
             item["pdf_path"] = pdf
+        item["codigo"] = codigo_erro(msg) if resultado in (R.ERRO, R.AVISO) else ""
+        item["recuperacoes"] = recuperacoes
+        item["substituido"] = bool(res.get("_substituido"))
+        item["sem_movimento"] = bool(res.get("_sem_movimento"))
+        if pdf:
+            try:
+                item["tamanho_bytes"] = os.path.getsize(pdf)
+            except OSError:
+                item["tamanho_bytes"] = None
+        t0 = self._t0.pop(id(item), None)
+        item.setdefault("inicio", R.agora())
+        item["duracao_s"] = round(time.monotonic() - t0, 2) if t0 is not None else 0.0
+        item["fim"] = R.agora()
         self.exec["item_atual"] = None
         self.ao_atualizar(self.exec)
+        try:
+            self.ao_concluir(item)
+        except Exception:  # o histórico nunca pode derrubar a execução
+            pass
 
     def _marcar_nao_executados(self, itens: list[dict], motivo: str) -> None:
         for it in itens:
@@ -130,7 +155,7 @@ class Runner:
 
             # a conta já respondeu "sem cartão": os outros meses do cartão terão o mesmo resultado
             if item["tipo"] == "cartao" and sem_cartao:
-                self._fechar(item, R.AVISO, "conta sem cartões de crédito vinculados")
+                self._fechar(item, R.AVISO, "conta sem cartões de crédito vinculados", recuperacoes=recovery)
                 idx += 1
                 continue
 
@@ -138,6 +163,8 @@ class Runner:
             ultimo = idx == len(itens) - 1
             item["estado"] = "em_andamento"
             item["tentativas"] = int(item.get("tentativas", 0)) + 1
+            self._t0.setdefault(id(item), time.monotonic())
+            item.setdefault("inicio", R.agora())
             self.exec["item_atual"] = {"numero": numero, "tipo": item["tipo"], "chave": item["chave"],
                                        "tentativa": item["tentativas"]}
             self.ao_atualizar(self.exec)
@@ -162,29 +189,27 @@ class Runner:
             categoria, msg = classificar(res)
 
             if categoria in R.CONCLUIDOS_OK:
-                self._fechar(item, categoria, msg, res.get("pdf_path", ""))
+                self._fechar(item, categoria, msg, res.get("pdf_path", ""), res, recovery)
                 reentrar = False
                 idx += 1
             elif categoria == R.AVISO:
                 if item["tipo"] == "cartao":
                     sem_cartao = True
-                self._fechar(item, R.AVISO, msg)
+                self._fechar(item, R.AVISO, msg, res=res, recuperacoes=recovery)
                 reentrar = False  # a conta continua selecionada; o aviso não derruba o estado da tela
                 idx += 1
             else:  # erro
                 recovery += 1
                 reentrar = True
                 if recovery > self.recovery_max:
-                    self._fechar(item, R.ERRO, msg)
+                    self._fechar(item, R.ERRO, msg, res=res, recuperacoes=recovery)
                     for resto in itens[idx + 1:]:
                         if resto.get("resultado") is None:
-                            resto["estado"] = "concluido"
-                            resto["resultado"] = R.ERRO
-                            resto["mensagem"] = "desistência: limite de recuperações da conta atingido"
-                    self.ao_atualizar(self.exec)
+                            self._fechar(resto, R.ERRO, "desistência: limite de recuperações da conta atingido",
+                                         recuperacoes=recovery)
                     return
                 if item["tentativas"] >= self.tentativas_max:
-                    self._fechar(item, R.ERRO, msg)  # erro definitivo deste item
+                    self._fechar(item, R.ERRO, msg, res=res, recuperacoes=recovery)  # erro definitivo deste item
                     idx += 1
                 else:
                     item["mensagem"] = msg  # nova tentativa do mesmo item

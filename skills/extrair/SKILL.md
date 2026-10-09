@@ -8,6 +8,7 @@ allowed-tools:
   - mcp__plugin_lid_sicoob__status
   - mcp__plugin_lid_sicoob__resultados
   - mcp__plugin_lid_sicoob__atalho_contas
+  - mcp__plugin_lid_sicoob__historico
 ---
 
 # /lid:extrair
@@ -22,6 +23,8 @@ a aprovação do usuário**: só chame depois de ele ter confirmado o resumo.
 
 ## Iniciar
 - **Pedido novo:** chame `extrair` com `pasta`, `contas`, `documentos`, `meses` e `confirmado: true`.
+- **Só o que falta:** o mesmo pedido com `apenas_pendentes: true` roda apenas os itens que nunca tiveram sucesso no histórico do plugin
+  (pula o que já foi feito, inclusive de outros dias). `validar_pedido` mostra "só o que falta: N de M itens"; se não sobrar nada, ele avisa.
 - **Refazer os itens com erro da última execução:** `extrair` com `refazer: "erro"` e `confirmado: true`.
 - **Continuar de onde parou** (itens que não rodaram: cancelamento ou navegador fechado): `extrair` com `refazer: "continuar"`.
 - O resultado traz o número da execução e o total de itens. A execução roda em segundo plano (cada item leva de 20 a 70 s).

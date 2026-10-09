@@ -5,6 +5,7 @@ user-invocable: true
 allowed-tools:
   - mcp__plugin_lid_sicoob__resultados
   - mcp__plugin_lid_sicoob__status
+  - mcp__plugin_lid_sicoob__historico
 ---
 
 # /lid:resultado
@@ -18,6 +19,9 @@ Significado dos resultados:
 - ✅ gerado, ✅ substituído (o arquivo já existia e foi trocado), ✅ sem movimento (o PDF traz só os saldos, como o portal entrega);
 - ⚠️ aviso: conta sem cartão ou mês sem comprovantes. **Não é erro.**
 - ❌ erro, com o motivo; ⏸️ não executado (a execução foi cancelada ou interrompida).
+
+Para saber se algo já foi gerado antes (de qualquer execução), use `historico` com `consulta: "item"` (conta, documento e mês): ele devolve o último
+resultado, o último sucesso e o caminho do arquivo. `consulta: "resumo"` dá as contagens do histórico.
 
 Termine com o total de certos, avisos e erros. Se houver ❌, ofereça **refazer só esses itens**; se houver ⏸️, ofereça
 **continuar de onde parou** (ambos pelo `/lid:extrair`).

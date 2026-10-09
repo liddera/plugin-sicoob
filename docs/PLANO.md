@@ -10,9 +10,9 @@
 | Pasta de destino | Informada **só no `/lid:login`** (padrão `H:\Drives compartilhados\Contábil`) |
 | Contas/documentos/meses | Por conversa em linguagem normal, com resumo para confirmar antes de executar |
 | Arquivo já existente | Sobrescrever como o robô, marcando "substituído" |
-| Controle do robô | Ler `controle_execucao_contas.json`; **gravar só na F6**, com backup |
+| Histórico | **Próprio do plugin** (JSON Lines, um registro por item concluído, em `%LOCALAPPDATA%\SicoobBot\lid\historico`); o `controle_execucao_contas.json` do robô fica só para consulta (`fonte="robo"`). Substitui a antiga F6 (gravar no arquivo do robô) |
 | Código do robô | Copiado para `vendor/` (plugin independente), com `scripts/sync_vendor.py` |
-| Atalhos | "pendentes", "com erro", "refazer erros", "continuar de onde parou" |
+| Atalhos | "pendentes", "com erro", "só o que falta" (`apenas_pendentes`), "refazer erros", "continuar de onde parou"; pendente = nunca teve sucesso; aviso fecha o item, exceto no mês corrente |
 | Privacidade | Saldos e movimentos nunca voltam ao Claude |
 
 ## Diferenças deliberadas em relação ao robô
@@ -22,7 +22,7 @@
 
 ## Fases
 F1 esqueleto ✅ · F2 vendor ✅ · F3 núcleo ✅ · F4 servidor MCP + worker ✅ · F5 preparar e skills ✅ ·
-F6 gravar o controle (com backup) ⏳ · F7 diagnóstico de seletores e guia de instalação ⏳
+F6 histórico próprio ✅ · F7 diagnóstico de seletores do portal ⏳ (o `/lid:diagnostico` de suporte já existe)
 
 ## Pendências conhecidas
 - Teste com login real (exige o QR). Persistência do cadastro do dispositivo.

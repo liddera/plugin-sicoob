@@ -7,7 +7,7 @@ pastas da contabilidade.
 É um produto **separado** do robô SicoobBot (`automacoes`): não tem tela, o Claude conduz por conversa.
 O código que fala com o portal e as regras de pasta/nome/período são **os do robô**, copiados em `vendor/`.
 
-## Status (v0.2.0)
+## Status (v0.3.0)
 
 Todas as partes foram construídas e testadas **sem o portal**; a parte que depende de login por QR **ainda não foi
 testada com o Sicoob real**. Veja "O que foi e o que não foi verificado".
@@ -16,10 +16,10 @@ testada com o Sicoob real**. Veja "O que foi e o que não foi verificado".
 |---|---|---|
 | F1 | Esqueleto no padrão oficial (manifesto, marketplace, 6 skills) | ✅ |
 | F2 | Código do robô em `vendor/` com script de sincronização e `VENDOR.json` | ✅ |
-| F3 | Núcleo: pedido, runner, controle (só leitura), proteção do perfil, log, resultado | ✅ 37 testes |
+| F3 | Núcleo: pedido, runner, histórico, controle do robô (só leitura), proteção do perfil, log, resultado | ✅ |
 | F4 | Servidor MCP + worker (navegador isolado) | ✅ 9 testes de integração |
 | F5 | `/lid:preparar` (ambiente Python + Playwright + Chromium) e skills finais | ✅ testado do zero |
-| F6 | Gravar no `controle_execucao_contas.json` (com backup) | ⏳ a fazer (hoje só lê) |
+| F6 | **Histórico próprio** do plugin (JSON Lines, por item), com atalhos pendentes/erro/“só o que falta” | ✅ (substitui gravar no arquivo do robô) |
 | F7 | Diagnóstico de seletores quando o portal mudar, guia de instalação | ⏳ a fazer |
 
 ## Requisitos
@@ -72,14 +72,16 @@ Exemplo:
 | `conectar` / `login_status` | Abre o navegador na tela de login / informa navegador, login e nº de contas |
 | `listar_contas` / `buscar_conta` | Lista os números / busca por número ou nome (devolve número, nome, PJ ou PF; nunca CNPJ/CPF) |
 | `validar_pedido` | Confere pasta, contas, documentos e meses **sem executar** e devolve o resumo |
-| `extrair` | Inicia a execução (exige `confirmado=true`); também `refazer: "erro"` e `refazer: "continuar"` |
+| `extrair` | Inicia a execução (exige `confirmado=true`); também `refazer: "erro"`, `refazer: "continuar"` e `apenas_pendentes: true` (só o que nunca teve sucesso) |
 | `status` / `cancelar` / `resultados` | Andamento / cancela ao fim do item / relatório |
-| `atalho_contas` | Contas `pendentes` ou `com_erro` hoje, lidas do controle do robô |
+| `atalho_contas` | Contas `pendentes` (dos documentos e meses informados) ou `com_erro`, pelo **histórico do plugin**; `fonte="robo"` consulta o controle do robô (só leitura) |
+| `historico` | `resumo` (contagens) ou `item` (último resultado e último sucesso de uma conta, documento e mês, com o caminho do arquivo) |
 | `diagnostico` | Caminhos, versões e últimas linhas do log (sem dados bancários) |
 
 ## Onde os arquivos são salvos
+A **pasta de destino** é a que o usuário informa no `/lid:login`.
 ```
-<pasta base>\<Empresa>\<ano>\Banco\Sicoob\<conta>\<tipo>\<MM>.pdf
+<pasta de destino>\<Empresa>\<ano>\Banco\Sicoob\<conta>\<tipo>\<MM>.pdf
 ```
 | Documento | Pasta `<tipo>` |
 |---|---|
@@ -129,16 +131,21 @@ Claude ─ skills ─▶ conduzem a conversa e a confirmação
 O servidor é separado do worker de propósito: uma queda do navegador não derruba o servidor, e o servidor consegue
 oferecer `preparar` mesmo sem o Playwright instalado.
 
-## Arquivos e logs
-Em `%LOCALAPPDATA%\SicoobBot\lid\`: `ultima_execucao.json` (resultado da última execução, base do relatório e do "refazer/continuar")
-e `logs\lid.log`. O log registra **como o navegador morreu** (`pagina_travou`, `pagina_fechada`, `contexto_fechado`,
+## Histórico, arquivos e logs
+Tudo isso fica na **pasta de dados do plugin**, que **não** é a pasta de destino dos PDFs: `%LOCALAPPDATA%\SicoobBot` no Windows (a mesma do robô), dentro de `lid\`.
+
+- `historico\itens.jsonl`: **um registro por item concluído** (conta × documento × mês), só acrescentando: resultado (gerado, substituído, sem movimento, aviso, erro), **código do erro** (`navegador_fechado`, `tempo_esgotado`, `conta_nao_encontrada`, `periodo_divergente`, `sem_cartao`…), mensagem, início, **duração**, tentativas, recuperações, arquivo e tamanho, pasta de destino, versão do plugin e do Chromium. É o que alimenta "pendentes", "com erro" e "só o que falta". Resiste a queda no meio da gravação (linhas cortadas são ignoradas e o próximo registro não se perde), tem versão do formato e rotação por tamanho.
+- `historico\execucoes.jsonl`: início e fim de cada execução.
+- O arquivo `controle_execucao_contas.json` do **robô** continua só para consulta (nunca é alterado pelo plugin).
+- `ultima_execucao.json`: resultado da última execução (base do relatório e do "refazer/continuar")
+- `logs\lid.log`: O log registra **como o navegador morreu** (`pagina_travou`, `pagina_fechada`, `contexto_fechado`,
 `navegador_desconectado`) e tudo que o código do robô imprime. Não grava saldos nem movimentos.
 
 ## Segurança e privacidade
 - Só **consulta e exporta**: não há pagamento, transferência nem alteração no portal. Só o domínio `ib.sicoob.com.br`.
 - Nenhuma credencial é digitada ou guardada.
 - **Saldos e movimentos não voltam ao Claude:** os PDFs ficam em disco, e na conversa aparecem só status, nomes e caminhos.
-- O controle do robô (`controle_execucao_contas.json`) é **somente leitura** nesta versão.
+- O controle do robô (`controle_execucao_contas.json`) é **somente leitura**; o plugin tem o seu próprio histórico.
 
 ## Problemas comuns
 | Sintoma | Causa provável | O que fazer |
@@ -154,7 +161,7 @@ e `logs\lid.log`. O log registra **como o navegador morreu** (`pagina_travou`, `
 
 ## O que foi e o que não foi verificado
 **Verificado (sem o portal):**
-- 46 testes automáticos (núcleo, runner e integração servidor MCP ⇄ worker ⇄ runner, com arquivos reais) e mutações que provam que o runner pega violações das regras.
+- 66 testes automáticos (núcleo, runner, histórico e integração servidor MCP ⇄ worker ⇄ runner, com arquivos reais) e mutações que provam que o runner e o histórico pegam violações das regras. Os testes do histórico acharam e corrigiram dois defeitos: registro colado numa linha cortada por queda, e rotação que podia sobrescrever um arquivo.
 - `claude plugin validate --strict` nos dois manifestos.
 - Pelo **Claude Code real**: o plugin carrega, os comandos `/lid:*` aparecem, o servidor MCP conecta, as 13 ferramentas são registradas, `/lid:status` chama a ferramenta sem pedir permissão e o Claude interpreta a resposta.
 - **Do zero**: `preparar` monta o ambiente (Playwright 1.63.0 + Chromium 153.0.8010.12) e `conectar` abre esse navegador; a queda é detectada e registrada com a causa; reabrir funciona; ao encerrar o servidor não sobra processo.
@@ -174,7 +181,7 @@ e `logs\lid.log`. O log registra **como o navegador morreu** (`pagina_travou`, `
 skills/<comando>/SKILL.md         login, extrair, status, resultado, preparar, cancelar, diagnostico
 server/                           lid_server.py (MCP), setup_env.py (preparar)
 worker/                           main.py, backend_real.py, backend_fake.py (testes)
-core/                             pedido, runner, controle, perfil, resultado, logs, paths
+core/                             pedido, runner, historico, erros, controle (robô, leitura), perfil, resultado, logs, paths
 vendor/sicoobbot/                 código do robô + config.py do plugin + VENDOR.json
 scripts/sync_vendor.py            copia o código do robô e registra o commit de origem
 tests/                            unittest (+ smoke_*.py manuais, com navegador real)

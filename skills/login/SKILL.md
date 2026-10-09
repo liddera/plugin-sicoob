@@ -9,6 +9,7 @@ allowed-tools:
   - mcp__plugin_lid_sicoob__buscar_conta
   - mcp__plugin_lid_sicoob__validar_pedido
   - mcp__plugin_lid_sicoob__atalho_contas
+  - mcp__plugin_lid_sicoob__historico
 ---
 
 # /lid:login
@@ -41,7 +42,9 @@ Pergunte uma coisa de cada vez (ou aceite tudo em uma frase) e converta para os 
    - números, com ou sem pontuação (`47.041-4`, `470414`);
    - nome da empresa: use `buscar_conta` e mostre as contas encontradas para o usuário escolher;
    - "todas": peça confirmação extra;
-   - "as pendentes" ou "as com erro": use `atalho_contas` (modo `pendentes` ou `com_erro`) e mostre a lista;
+   - "as com erro": use `atalho_contas` com `modo: "com_erro"` (itens cujo último resultado foi erro, pelo histórico do plugin) e mostre a lista;
+   - "as pendentes": primeiro defina documentos e meses, depois use `atalho_contas` com `modo: "pendentes"`, `documentos` e `meses`
+     (o que nunca teve sucesso); o robô tem um controle próprio, consultável com `fonte: "robo"` (somente leitura);
    - uma lista colada: um número por linha.
 3. **Documentos**: extrato conta corrente, conta capital, comprovantes, fatura de cartão (um, vários ou "todos").
 4. **Meses**: `06/2026`, `06/2026 a 09/2026`, "junho a setembro de 2026", "mês passado" (calcule e mostre as datas).

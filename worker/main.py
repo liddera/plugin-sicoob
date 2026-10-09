@@ -42,6 +42,7 @@ class _SaidaParaLog(io.TextIOBase):
 sys.stdout = _SaidaParaLog()
 
 from core import controle, logs, paths, pedido, perfil  # noqa: E402
+from core.historico import Historico  # noqa: E402
 from core import resultado as R  # noqa: E402
 from worker.backend_real import Falha  # noqa: E402
 
@@ -68,6 +69,7 @@ class Estado:
 
 ST = Estado()
 BACKEND = None
+HIST = Historico()
 
 
 def backend():
@@ -197,10 +199,20 @@ def _planejar(args: dict) -> dict:
             problemas.append("Nenhum mês informado.")
         itens_novos = [R.novo_item(i["numero"], i["tipo"], i["ano"], i["mes"])
                        for i in pedido.montar_itens(contas, tipos, meses)] if contas and tipos and meses else []
+        if args.get("apenas_pendentes") and itens_novos:
+            total = len(itens_novos)
+            faltam = {(i["numero"], i["tipo"], i["chave"]) for i in HIST.pendentes(itens_novos)}
+            itens_novos = [i for i in itens_novos if (i["numero"], i["tipo"], i["chave"]) in faltam]
+            if not itens_novos:
+                problemas.append(f"Nada a fazer: os {total} itens do pedido já foram concluídos antes (histórico do plugin).")
+            else:
+                avisos.append(f"Só o que falta: {len(itens_novos)} de {total} itens (os outros já foram concluídos antes).")
     info_pasta = pedido.validar_pasta(pasta)
     problemas += info_pasta["erros"]
     avisos += info_pasta["avisos"]
     resumo = pedido.resumo_pedido(pasta, contas, tipos, meses) if (contas and tipos and meses) else None
+    if resumo and itens_novos and len(itens_novos) != resumo["total_itens"]:
+        resumo["total_itens_a_rodar"] = len(itens_novos)
     return {"problemas": problemas, "avisos": avisos, "pasta": info_pasta, "resumo": resumo,
             "itens": itens_novos, "contas": contas, "tipos": tipos, "meses": meses, "refazer": refazer}
 
@@ -246,8 +258,27 @@ def op_extrair(args):
         ST.rodando = True
     _persistir(execucao)
     logs.evento("extrair", run_id=run_id, itens=len(p["itens"]), refazer=p["refazer"])
+    ctx = {"pasta_base": pasta, "plugin": paths.versao_plugin(), "chromium": backend().versao_chromium() or ""}
+
+    def _gravar_item(item):
+        try:
+            HIST.registrar_item(run_id, item, ctx)
+        except Exception as ex:
+            logs.log(f"falha ao gravar o histórico do item: {ex}", "WARN")
+
+    def _terminar():
+        try:
+            HIST.registrar_execucao("fim", execucao, ctx)
+        except Exception as ex:
+            logs.log(f"falha ao gravar o histórico da execução: {ex}", "WARN")
+        _terminou()
+
+    try:
+        HIST.registrar_execucao("inicio", execucao, ctx)
+    except Exception as ex:
+        logs.log(f"falha ao gravar o histórico da execução: {ex}", "WARN")
     backend().rodar_execucao(execucao, [{"numero": n, "empresa": ""} for n in p["contas"]], pasta,
-                             ST.cancelado, _persistir, _terminou)
+                             ST.cancelado, _persistir, _terminar, _gravar_item)
     return {"run_id": run_id, "total_itens": len(p["itens"]), "mensagem": "Execução iniciada. Acompanhe com /lid:status."}
 
 
@@ -277,23 +308,68 @@ def op_resultados(args):
 
 
 def op_atalho_contas(args):
-    modo, tipo = args.get("modo"), pedido.normalizar_tipo(str(args.get("documento", "corrente"))) or "corrente"
-    ctl = controle.carregar()
-    if modo == "com_erro":
-        itens = controle.itens_com_erro(ctl, [tipo])
-        contas = list(dict.fromkeys(i["numero"] for i in itens))
-        return {"documento": tipo, "contas": contas, "itens": itens, "fonte": "controle do robô (hoje)"}
-    if modo == "pendentes":
+    """Contas a (re)fazer, a partir do HISTÓRICO DO PLUGIN (padrão) ou do controle do robô (fonte='robo', só leitura)."""
+    modo = args.get("modo")
+    if modo not in ("pendentes", "com_erro"):
+        raise Falha("modo deve ser 'pendentes' ou 'com_erro'.")
+    if args.get("fonte") == "robo":
+        tipo = pedido.normalizar_tipo(str(args.get("documento", "corrente"))) or "corrente"
+        ctl = controle.carregar()
+        if modo == "com_erro":
+            itens = controle.itens_com_erro(ctl, [tipo])
+            return {"fonte": "controle do robô (hoje, somente leitura)", "documento": tipo,
+                    "contas": list(dict.fromkeys(i["numero"] for i in itens)), "itens": itens}
         _exigir_login()
         g = controle.classificar_contas(ctl, ST.contas, tipo)
-        return {"documento": tipo, "contas": g["pendentes"], "contagem": g["contagem"], "fonte": "controle do robô (hoje)"}
-    raise Falha("modo deve ser 'pendentes' ou 'com_erro'.")
+        return {"fonte": "controle do robô (hoje, somente leitura)", "documento": tipo, "contas": g["pendentes"], "contagem": g["contagem"]}
+    tipos, ruins = pedido.normalizar_tipos(args.get("documentos") or ([args["documento"]] if args.get("documento") else []))
+    if ruins:
+        raise Falha(f"documento não reconhecido: {', '.join(ruins)}")
+    if modo == "com_erro":
+        itens = HIST.com_erro(tipos=tipos or None)
+        return {"fonte": "histórico do plugin", "contas": list(dict.fromkeys(i["numero"] for i in itens)), "itens": itens}
+    _exigir_login()
+    if not tipos:
+        raise Falha("Informe os documentos para saber o que está pendente.")
+    meses, pm = pedido.expandir_meses(args.get("meses") or [])
+    if pm or not meses:
+        raise Falha("Informe meses válidos para saber o que está pendente. " + " | ".join(pm))
+    contas = ST.contas
+    if args.get("contas"):
+        r = pedido.resolver_contas(args["contas"], ST.contas)
+        contas = r["aceitas"]
+    pedidos = [R.novo_item(i["numero"], i["tipo"], i["ano"], i["mes"]) for i in pedido.montar_itens(contas, tipos, meses)]
+    faltam = HIST.pendentes(pedidos)
+    return {"fonte": "histórico do plugin", "itens_pedidos": len(pedidos), "itens_pendentes": len(faltam),
+            "contas": list(dict.fromkeys(i["numero"] for i in faltam)),
+            "exemplos": [{"numero": i["numero"], "tipo": i["tipo"], "chave": i["chave"]} for i in faltam[:10]]}
+
+
+def op_historico(args):
+    consulta = args.get("consulta")
+    if consulta == "resumo":
+        return HIST.resumo()
+    if consulta == "item":
+        numero = pedido.normalizar_conta(str(args.get("conta", "")))
+        tipo = pedido.normalizar_tipo(str(args.get("documento", "")))
+        mes = pedido.parse_mes(str(args.get("mes", "")))
+        if not (numero and tipo and mes):
+            raise Falha("Informe conta, documento e mês (ex.: 47.041-4, corrente, 08/2026).")
+        e = HIST.ultimo_do_item(numero, tipo, pedido.chave_mes(*mes))
+        if not e:
+            return {"encontrado": False}
+        campos = ("ts", "run_id", "resultado", "codigo", "mensagem", "pdf_path", "tamanho_bytes", "duracao_s", "tentativas")
+        return {"encontrado": True, "registros": e["registros"],
+                "ultimo": {k: e["ultimo"].get(k) for k in campos},
+                "ultimo_sucesso": ({k: e["ultimo_sucesso"].get(k) for k in campos} if e["ultimo_sucesso"] else None)}
+    raise Falha("consulta deve ser 'resumo' ou 'item'.")
 
 
 OPS = {
     "ping": op_ping, "conectar": op_conectar, "login_status": op_login_status, "listar_contas": op_listar_contas,
     "buscar_conta": op_buscar_conta, "validar_pedido": op_validar_pedido, "extrair": op_extrair,
     "status": op_status, "cancelar": op_cancelar, "resultados": op_resultados, "atalho_contas": op_atalho_contas,
+    "historico": op_historico,
 }
 
 

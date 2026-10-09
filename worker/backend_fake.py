@@ -84,10 +84,11 @@ class BackendFake:
             return {"empresa": empresa, "pdf_path": str(arq), "_substituido": existia}
         return acessar
 
-    def rodar_execucao(self, execucao, contas, pasta, cancelado, persistir, ao_terminar):
+    def rodar_execucao(self, execucao, contas, pasta, cancelado, persistir, ao_terminar, ao_concluir=lambda item: None):
         def job():
             try:
-                Runner(execucao, contas, self._acessar(pasta), self.nav_vivo, cancelado, ao_atualizar=persistir).executar()
+                Runner(execucao, contas, self._acessar(pasta), self.nav_vivo, cancelado, ao_atualizar=persistir,
+                       ao_concluir=ao_concluir).executar()
             finally:
                 persistir(execucao)
                 ao_terminar()

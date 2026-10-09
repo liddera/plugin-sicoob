@@ -46,6 +46,8 @@ _PEDIDO = {
     "meses": {**_LISTA_STR, "description": "Meses como 06/2026 ou intervalos como 06/2026 a 09/2026"},
     "refazer": {"type": "string", "enum": ["erro", "continuar"],
                 "description": "Refaz só os itens com erro, ou continua os que não rodaram, da última execução (ignora contas/documentos/meses)"},
+    "apenas_pendentes": {"type": "boolean",
+                         "description": "Roda só os itens do pedido que nunca tiveram sucesso no histórico do plugin (pula o que já foi feito)"},
 }
 
 # nome, descrição, op do worker (None = local), timeout (s), só leitura, propriedades do schema, obrigatórios
@@ -70,8 +72,19 @@ TOOLS = [
     ("cancelar", "Cancela a extração ao fim do item atual (não fecha o navegador).", "cancelar", 15, False, {}, []),
     ("resultados", "Relatório da última extração: conta, empresa, documento, mês, resultado e arquivo. Nunca inclui saldos nem movimentos.",
      "resultados", 30, True, {}, []),
-    ("atalho_contas", "Contas 'pendentes' ou 'com_erro' hoje, lidas do controle do robô (somente leitura).", "atalho_contas", 30, True,
-     {"modo": {"type": "string", "enum": ["pendentes", "com_erro"]}, "documento": {"type": "string", "description": "documento (padrão corrente)"}}, ["modo"]),
+    ("atalho_contas", "Contas pendentes ou com erro, a partir do histórico do plugin (padrão) ou do controle do robô (fonte='robo', somente leitura). "
+     "'com_erro': itens cujo último resultado foi erro. 'pendentes': dos documentos e meses informados, o que nunca teve sucesso.",
+     "atalho_contas", 60, True,
+     {"modo": {"type": "string", "enum": ["pendentes", "com_erro"]},
+      "documentos": {**_LISTA_STR, "description": "documentos (obrigatório para 'pendentes')"},
+      "meses": {**_LISTA_STR, "description": "meses (obrigatório para 'pendentes')"},
+      "contas": {**_LISTA_STR, "description": "restringe a estas contas (padrão: todas as carregadas)"},
+      "fonte": {"type": "string", "enum": ["plugin", "robo"], "description": "padrão plugin"},
+      "documento": {"type": "string", "description": "só para fonte='robo' (padrão corrente)"}}, ["modo"]),
+    ("historico", "Consulta o histórico do plugin: 'resumo' (contagens) ou 'item' (último resultado e último sucesso de uma conta, documento e mês, "
+     "com o caminho do arquivo). Nunca inclui saldos nem movimentos.", "historico", 30, True,
+     {"consulta": {"type": "string", "enum": ["resumo", "item"]}, "conta": _STR, "documento": _STR,
+      "mes": {"type": "string", "description": "MM/AAAA"}}, ["consulta"]),
 ]
 _POR_NOME = {t[0]: t for t in TOOLS}
 

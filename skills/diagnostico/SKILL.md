@@ -7,6 +7,7 @@ allowed-tools:
   - mcp__plugin_lid_sicoob__login_status
   - mcp__plugin_lid_sicoob__status
   - mcp__plugin_lid_sicoob__preparar_status
+  - mcp__plugin_lid_sicoob__historico
 ---
 
 # /lid:diagnostico
@@ -19,6 +20,7 @@ allowed-tools:
    - `perfil_bloqueado`: o perfil está em uso (robô aberto) ou é de um Chromium mais novo;
    - `login_timeout`, `login_abortado`: o login não foi concluído a tempo, ou o navegador foi fechado antes;
    - `execucao_inicio`, `execucao_fim`, `execucao_falha`: andamento das extrações.
-4. Diga o caminho do log (`%LOCALAPPDATA%\SicoobBot\lid\logs\lid.log`) para o usuário anexar ao pedir ajuda.
+4. Se fizer sentido, use `historico` com `consulta: "resumo"` (contagens do histórico do plugin e quantas linhas foram ignoradas por estarem cortadas).
+5. Diga o caminho do log (`%LOCALAPPDATA%\SicoobBot\lid\logs\lid.log`) para o usuário anexar ao pedir ajuda.
 
 O log **não** contém saldos nem movimentos. Nunca peça nem mostre credenciais.
