@@ -1,0 +1,14 @@
+{
+  "name": "liddera-plugins",
+  "description": "Plugins da Liddera para o Claude Code.",
+  "owner": {
+    "name": "Liddera"
+  },
+  "plugins": [
+    {
+      "name": "lid",
+      "source": "./",
+      "description": "Extração de extratos, comprovantes e faturas do SicoobNet PJ conduzida pelo Claude."
+    }
+  ]
+}
