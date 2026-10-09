@@ -48,7 +48,7 @@ Depois: `/lid:preparar` (uma vez por computador) e `/lid:login`.
 2. **`/lid:login`**: abre o navegador do Sicoob; o usuário **escaneia o QR** (e cadastra o dispositivo, se pedir) e **não fecha a janela**.
    Depois o Claude pergunta, nesta ordem: **pasta → contas → documentos → meses** e mostra um resumo para confirmar.
 3. **`/lid:extrair`**: executa em segundo plano (cada item leva de 20 a 70 s). Pede aprovação por gravar arquivos.
-4. **`/lid:status`** (andamento), **`/lid:cancelar`** (para ao fim do item), **`/lid:resultado`** (relatório final).
+4. **`/lid:status`** (andamento), **`/lid:cancelar`** (para ao fim do item), **`/lid:resultado`** (relatório final), **`/lid:diagnostico`** (suporte: versões, ambiente e log).
 
 Exemplo:
 > **Você:** `/lid:login`
@@ -156,7 +156,7 @@ e `logs\lid.log`. O log registra **como o navegador morreu** (`pagina_travou`, `
 **Verificado (sem o portal):**
 - 46 testes automáticos (núcleo, runner e integração servidor MCP ⇄ worker ⇄ runner, com arquivos reais) e mutações que provam que o runner pega violações das regras.
 - `claude plugin validate --strict` nos dois manifestos.
-- Pelo **Claude Code real**: o plugin carrega, os 6 comandos `/lid:*` aparecem, o servidor MCP conecta, as 13 ferramentas são registradas, `/lid:status` chama a ferramenta sem pedir permissão e o Claude interpreta a resposta.
+- Pelo **Claude Code real**: o plugin carrega, os comandos `/lid:*` aparecem, o servidor MCP conecta, as 13 ferramentas são registradas, `/lid:status` chama a ferramenta sem pedir permissão e o Claude interpreta a resposta.
 - **Do zero**: `preparar` monta o ambiente (Playwright 1.63.0 + Chromium 153.0.8010.12) e `conectar` abre esse navegador; a queda é detectada e registrada com a causa; reabrir funciona; ao encerrar o servidor não sobra processo.
 - O código do robô importa com a configuração do plugin.
 
@@ -171,7 +171,7 @@ e `logs\lid.log`. O log registra **como o navegador morreu** (`pagina_travou`, `
 .claude-plugin/plugin.json        manifesto ("lid")
 .claude-plugin/marketplace.json   marketplace "liddera-plugins"
 .mcp.json                         servidor MCP "sicoob"
-skills/<comando>/SKILL.md         login, extrair, status, resultado, preparar, cancelar
+skills/<comando>/SKILL.md         login, extrair, status, resultado, preparar, cancelar, diagnostico
 server/                           lid_server.py (MCP), setup_env.py (preparar)
 worker/                           main.py, backend_real.py, backend_fake.py (testes)
 core/                             pedido, runner, controle, perfil, resultado, logs, paths
